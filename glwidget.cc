@@ -122,8 +122,8 @@ bool GLWidget::LoadModel(const QString &filename) {
     glGenBuffers(1, &vno_);
     glBindBuffer(GL_ARRAY_BUFFER, vno_);
     glBufferData(GL_ARRAY_BUFFER, mesh_->normals_.size() * sizeof(float), &mesh_->normals_[0], GL_STATIC_DRAW);
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
-    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+    glEnableVertexAttribArray(1);
 
     glGenBuffers(1, &ebo_);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
@@ -159,26 +159,6 @@ void GLWidget::initializeGL() {
 
   if (!res) exit(0);
 
-  glGenFramebuffers(1, &fbo_);
-  glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
-
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width_, height_);
-
-  glGenTextures(1, &normalDepthTexture_);
-  glBindTexture(GL_TEXTURE_2D, normalDepthTexture_);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, static_cast<int>(width_), static_cast<int>(height_), 0, GL_RGB, GL_FLOAT, nullptr);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glBindTexture(GL_TEXTURE_2D, 0);
-
-  glGenRenderbuffers(1, &rbo_);
-  glBindRenderbuffer(GL_RENDERBUFFER, rbo_);
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width_, height_);
-  glBindRenderbuffer(GL_RENDERBUFFER, 0);
-
-  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbo_);
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
   // Quad
   glGenVertexArrays(1, &quad_vao_);
   glBindVertexArray(quad_vao_);
@@ -203,6 +183,38 @@ void GLWidget::resizeGL(int w, int h) {
 
   camera_.SetViewport(0, 0, w, h);
   camera_.SetProjection(kFieldOfView, kZNear, kZFar);
+
+  if (resized_) {
+    glDeleteFramebuffers(1, &fbo_);
+    glDeleteRenderbuffers(1, &rbo_);
+    glDeleteTextures(1, &normalDepthTexture_);
+  }
+
+  glGenFramebuffers(1, &fbo_);
+  glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
+
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, w, h);
+
+  glGenTextures(1, &normalDepthTexture_);
+  glBindTexture(GL_TEXTURE_2D, normalDepthTexture_);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, normalDepthTexture_, 0);
+
+  glGenRenderbuffers(1, &rbo_);
+  glBindRenderbuffer(GL_RENDERBUFFER, rbo_);
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, w, h);
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo_);
+
+  glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+       std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << glGetError() << std::endl;
+
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+  resized_ = true;
 }
 
 void GLWidget::mousePressEvent(QMouseEvent *event) {
@@ -276,10 +288,11 @@ void GLWidget::paintGL() {
     if (mesh_ != nullptr) {
       // G Pass
       glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
-      glBindRenderbuffer(GL_RENDERBUFFER, rbo_);
 
       glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+      glEnable(GL_DEPTH_TEST);
 
       g_program_->bind();
       glUniformMatrix4fv( g_program_->uniformLocation("projection"), 1, GL_FALSE, projection.data());
@@ -288,7 +301,6 @@ void GLWidget::paintGL() {
       glUniformMatrix3fv(g_program_->uniformLocation("normal_matrix"), 1, GL_FALSE, normal.data());
 
       glBindTexture(GL_TEXTURE_2D, normalDepthTexture_);
-      glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, normalDepthTexture_, 0);
 
       // Draw model
       glBindVertexArray(vao_);
@@ -305,7 +317,9 @@ void GLWidget::paintGL() {
 
       light_program_->bind();
 
+      glActiveTexture(GL_TEXTURE0);
       glBindTexture(GL_TEXTURE_2D, normalDepthTexture_);
+      glUniform1i(light_program_->uniformLocation("normalDepthTexture"), 0);
 
       glBindVertexArray(quad_vao_);
       glDrawArrays(GL_TRIANGLES, 0, 6);

@@ -95,6 +95,8 @@ class GLWidget : public QGLWidget {
 
   std::unique_ptr<QOpenGLShaderProgram> g_program_;
 
+  bool resized_ = false;
+
  protected slots:
   /**
    * @brief paintGL Function that handles rendering the scene.
