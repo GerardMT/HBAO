@@ -43,6 +43,10 @@ FORMS    += \
     main_window.ui
 
 OTHER_FILES += \
-    shaders/light.frag \
+    shaders/light.frag
+
+DISTFILES += \
+    shaders/g.frag \
+    shaders/g.vert \
     shaders/light.vert
 

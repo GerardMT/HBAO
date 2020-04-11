@@ -80,6 +80,21 @@ class GLWidget : public QGLWidget {
    */
   float height_;
 
+  GLuint fbo_;
+  GLuint rbo_;
+
+  GLuint normalDepthTexture_;
+
+  GLuint vao_;
+  GLuint vbo_;
+  GLuint vno_;
+  GLuint ebo_;
+
+  GLuint quad_vao_;
+  GLuint quad_vbo_;
+
+  std::unique_ptr<QOpenGLShaderProgram> g_program_;
+
  protected slots:
   /**
    * @brief paintGL Function that handles rendering the scene.

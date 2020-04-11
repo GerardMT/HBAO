@@ -16,11 +16,24 @@ const double kFieldOfView = 60;
 const double kZNear = 0.0001;
 const double kZFar = 10;
 
-const char kLightVertexShaderFile[] = "../shaders/light.vert";
-const char kLightFragmentShaderFile[] = "../shaders/light.frag";
+const char gVertexShaderFile[] = "../shaders/g.vert";
+const char gFragmentShaderFile[] = "../shaders/g.frag";
+
+const char lightVertexShaderFile[] = "../shaders/light.vert";
+const char lightFragmentShaderFile[] = "../shaders/light.frag";
+
 
 const int kVertexAttributeIdx = 0;
 const int kNormalAttributeIdx = 1;
+
+const float quad_vertices[] = {
+  -1.0f,  1.0f, 0.0f,
+  -1.0f, -1.0f, 0.0f,
+   1.0f, -1.0f, 0.0f,
+   1.0f, -1.0f, 0.0f,
+   1.0f,  1.0f, 0.0f,
+  -1.0f,  1.0f, 0.0f
+};
 
 bool ReadFile(const std::string filename, std::string *shader_source) {
   std::ifstream infile(filename.c_str());
@@ -38,17 +51,15 @@ bool ReadFile(const std::string filename, std::string *shader_source) {
   return true;
 }
 
-bool LoadProgram(const std::string &vertex, const std::string &fragment,
-                 QOpenGLShaderProgram *program) {
+bool LoadProgram(const std::string &vertex, const std::string &fragment, QOpenGLShaderProgram *program) {
   std::string vertex_shader, fragment_shader;
-  bool res =
-      ReadFile(vertex, &vertex_shader) && ReadFile(fragment, &fragment_shader);
+  bool res = ReadFile(vertex, &vertex_shader) && ReadFile(fragment, &fragment_shader);
 
   if (res) {
-    program->addShaderFromSourceCode(QOpenGLShader::Vertex,
-                                     vertex_shader.c_str());
-    program->addShaderFromSourceCode(QOpenGLShader::Fragment,
-                                     fragment_shader.c_str());
+    program->addShaderFromSourceCode(QOpenGLShader::Vertex, vertex_shader.c_str());
+    std::cout << program->log().toUtf8().constData();
+    program->addShaderFromSourceCode(QOpenGLShader::Fragment, fragment_shader.c_str());
+    std::cout << program->log().toUtf8().constData();
     program->bindAttributeLocation("vertex", kVertexAttributeIdx);
     program->bindAttributeLocation("normal", kNormalAttributeIdx);
     program->link();
@@ -64,7 +75,22 @@ GLWidget::GLWidget(QWidget *parent)
   setFocusPolicy(Qt::StrongFocus);
 }
 
-GLWidget::~GLWidget() {}
+GLWidget::~GLWidget() {
+  if (initialized_) {
+    glDeleteVertexArrays(1, &vao_);
+    glDeleteBuffers(1, &vbo_);
+    glDeleteBuffers(1, &vno_);
+    glDeleteBuffers(1, &ebo_);
+
+    glDeleteVertexArrays(1, &quad_vao_);
+    glDeleteBuffers(1, &quad_vbo_);
+
+    glDeleteFramebuffers(1, &fbo_);
+    glDeleteRenderbuffers(1, &rbo_);
+
+    glDeleteTextures(1, &normalDepthTexture_);
+  }
+}
 
 bool GLWidget::LoadModel(const QString &filename) {
   std::string file = filename.toUtf8().constData();
@@ -84,7 +110,28 @@ bool GLWidget::LoadModel(const QString &filename) {
     camera_.UpdateModel(mesh_->min_, mesh_->max_);
 
     // TODO(students): Create / Initialize buffers.
+    glGenVertexArrays(1, &vao_);
+    glBindVertexArray(vao_);
 
+    glGenBuffers(1, &vbo_);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_);
+    glBufferData(GL_ARRAY_BUFFER, mesh_->vertices_.size() * sizeof(float), &mesh_->vertices_[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+    glEnableVertexAttribArray(0);
+
+    glGenBuffers(1, &vno_);
+    glBindBuffer(GL_ARRAY_BUFFER, vno_);
+    glBufferData(GL_ARRAY_BUFFER, mesh_->normals_.size() * sizeof(float), &mesh_->normals_[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+    glEnableVertexAttribArray(2);
+
+    glGenBuffers(1, &ebo_);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh_->faces_.size() * sizeof(unsigned int), &mesh_->faces_[0], GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    glBindVertexArray(0);
     // END.
 
     emit SetFaces(QString(std::to_string(mesh_->faces_.size() / 3).c_str()));
@@ -104,12 +151,47 @@ void GLWidget::initializeGL() {
   glCullFace(GL_BACK);
   glEnable(GL_DEPTH_TEST);
 
-  light_program_ = std::make_unique<QOpenGLShaderProgram>();
+  g_program_ = std::make_unique<QOpenGLShaderProgram>();
+  bool res = LoadProgram(gVertexShaderFile, gFragmentShaderFile, g_program_.get());
 
-  bool res = LoadProgram(kLightVertexShaderFile, kLightFragmentShaderFile,
-                         light_program_.get());
+  light_program_ = std::make_unique<QOpenGLShaderProgram>();
+  res &= LoadProgram(lightVertexShaderFile, lightFragmentShaderFile, light_program_.get());
 
   if (!res) exit(0);
+
+  glGenFramebuffers(1, &fbo_);
+  glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
+
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width_, height_);
+
+  glGenTextures(1, &normalDepthTexture_);
+  glBindTexture(GL_TEXTURE_2D, normalDepthTexture_);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, static_cast<int>(width_), static_cast<int>(height_), 0, GL_RGB, GL_FLOAT, nullptr);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glBindTexture(GL_TEXTURE_2D, 0);
+
+  glGenRenderbuffers(1, &rbo_);
+  glBindRenderbuffer(GL_RENDERBUFFER, rbo_);
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width_, height_);
+  glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbo_);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+  // Quad
+  glGenVertexArrays(1, &quad_vao_);
+  glBindVertexArray(quad_vao_);
+
+  glGenBuffers(1, &quad_vbo_);
+  glBindBuffer(GL_ARRAY_BUFFER, quad_vbo_);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(quad_vertices), quad_vertices, GL_STATIC_DRAW);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
+  glEnableVertexAttribArray(0);
+
+  glBindVertexArray(0);
+
+  LoadModel("../models/sphere.ply");
 
   initialized_ = true;
 }
@@ -164,19 +246,19 @@ void GLWidget::keyPressEvent(QKeyEvent *event) {
   if (event->key() == Qt::Key_D) camera_.Rotate(1);
 
   if (event->key() == Qt::Key_R) {
+    g_program_.reset();
+    g_program_ = std::make_unique<QOpenGLShaderProgram>();
+    LoadProgram(gVertexShaderFile, gFragmentShaderFile, g_program_.get());
+
     light_program_.reset();
     light_program_ = std::make_unique<QOpenGLShaderProgram>();
-    LoadProgram(kLightVertexShaderFile, kLightFragmentShaderFile,
-                light_program_.get());
+    LoadProgram(lightVertexShaderFile, lightFragmentShaderFile, light_program_.get());
   }
 
   updateGL();
 }
 
 void GLWidget::paintGL() {
-  glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
   if (initialized_) {
     camera_.SetViewport();
 
@@ -192,23 +274,45 @@ void GLWidget::paintGL() {
     normal = normal.inverse().transpose();
 
     if (mesh_ != nullptr) {
-      GLint projection_location, view_location, model_location,
-          normal_matrix_location;
+      // G Pass
+      glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
+      glBindRenderbuffer(GL_RENDERBUFFER, rbo_);
+
+      glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+      g_program_->bind();
+      glUniformMatrix4fv( g_program_->uniformLocation("projection"), 1, GL_FALSE, projection.data());
+      glUniformMatrix4fv(g_program_->uniformLocation("view"), 1, GL_FALSE, view.data());
+      glUniformMatrix4fv(g_program_->uniformLocation("model"), 1, GL_FALSE, model.data());
+      glUniformMatrix3fv(g_program_->uniformLocation("normal_matrix"), 1, GL_FALSE, normal.data());
+
+      glBindTexture(GL_TEXTURE_2D, normalDepthTexture_);
+      glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, normalDepthTexture_, 0);
+
+      // Draw model
+      glBindVertexArray(vao_);
+      glDrawElements(GL_TRIANGLES, mesh_->faces_.size(), GL_UNSIGNED_INT, nullptr);
+      glBindVertexArray(0);
+
+      // Light pass
+      glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+      glClearColor(0.0f, 0.0f, 0.3f, 1.0f);
+      glClear(GL_COLOR_BUFFER_BIT);
+
+      glDisable(GL_DEPTH_TEST);
 
       light_program_->bind();
-      projection_location = light_program_->uniformLocation("projection");
-      view_location = light_program_->uniformLocation("view");
-      model_location = light_program_->uniformLocation("model");
-      normal_matrix_location = light_program_->uniformLocation("normal_matrix");
 
-      glUniformMatrix4fv(projection_location, 1, GL_FALSE, projection.data());
-      glUniformMatrix4fv(view_location, 1, GL_FALSE, view.data());
-      glUniformMatrix4fv(model_location, 1, GL_FALSE, model.data());
-      glUniformMatrix3fv(normal_matrix_location, 1, GL_FALSE, normal.data());
+      glBindTexture(GL_TEXTURE_2D, normalDepthTexture_);
 
-      // TODO(students): Implement model rendering.
-
-      // END.
+      glBindVertexArray(quad_vao_);
+      glDrawArrays(GL_TRIANGLES, 0, 6);
+      glBindVertexArray(0);
+    } else {
+      glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+      glClear(GL_COLOR_BUFFER_BIT);
     }
   }
 }
