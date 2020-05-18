@@ -8,5 +8,4 @@ uniform sampler2D normalDepthTexture;
 
 void main (void) {
   frag_color = vec4(texture(normalDepthTexture, pos).rgb, 1.0);
-  //frag_color = vec4(pos.x, pos.y, 0.0f, 1.0);
 }

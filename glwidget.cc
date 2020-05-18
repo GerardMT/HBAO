@@ -6,6 +6,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <limits>
 
 #include "./mesh_io.h"
 #include "./triangle_mesh.h"
@@ -16,12 +17,20 @@ const double kFieldOfView = 60;
 const double kZNear = 0.0001;
 const double kZFar = 10;
 
-const char gVertexShaderFile[] = "../shaders/g.vert";
-const char gFragmentShaderFile[] = "../shaders/g.frag";
+const char g_vert_file[] = "../shaders/g.vert";
+const char g_frag_file[] = "../shaders/g.frag";
 
-const char lightVertexShaderFile[] = "../shaders/light.vert";
-const char lightFragmentShaderFile[] = "../shaders/light.frag";
+const char blur_vert_file[] = "../shaders/blur.vert";
+const char blur_frag_file[] = "../shaders/blur.frag";
 
+const char hbao_vert_file[] = "../shaders/hbao.vert";
+const char hbao_frag_file[] = "../shaders/hbao.frag";
+
+const char ao2_vert_file[] = "../shaders/ao2.vert";
+const char ao2_frag_file[] = "../shaders/ao2.frag";
+
+const char separable_ao_vert_file[] = "../shaders/separable_ao.vert";
+const char separable_ao_frag_file[] = "../shaders/separable_ao.frag";
 
 const int kVertexAttributeIdx = 0;
 const int kNormalAttributeIdx = 1;
@@ -51,18 +60,18 @@ bool ReadFile(const std::string filename, std::string *shader_source) {
   return true;
 }
 
-bool LoadProgram(const std::string &vertex, const std::string &fragment, QOpenGLShaderProgram *program) {
+bool LoadProgram(const std::string &vertex, const std::string &fragment, QOpenGLShaderProgram &program) {
   std::string vertex_shader, fragment_shader;
   bool res = ReadFile(vertex, &vertex_shader) && ReadFile(fragment, &fragment_shader);
 
   if (res) {
-    program->addShaderFromSourceCode(QOpenGLShader::Vertex, vertex_shader.c_str());
-    std::cout << program->log().toUtf8().constData();
-    program->addShaderFromSourceCode(QOpenGLShader::Fragment, fragment_shader.c_str());
-    std::cout << program->log().toUtf8().constData();
-    program->bindAttributeLocation("vertex", kVertexAttributeIdx);
-    program->bindAttributeLocation("normal", kNormalAttributeIdx);
-    program->link();
+    program.addShaderFromSourceCode(QOpenGLShader::Vertex, vertex_shader.c_str());
+    std::cout << program.log().toUtf8().constData();
+    program.addShaderFromSourceCode(QOpenGLShader::Fragment, fragment_shader.c_str());
+    std::cout << program.log().toUtf8().constData();
+    program.bindAttributeLocation("vertex", kVertexAttributeIdx);
+    program.bindAttributeLocation("normal", kNormalAttributeIdx);
+    program.link();
   }
 
   return res;
@@ -76,6 +85,12 @@ GLWidget::GLWidget(QWidget *parent)
 }
 
 GLWidget::~GLWidget() {
+  delete g_program_;
+  delete blur_program_;
+  delete hbao_program_;
+  delete ao2_program_;
+  delete separable_ao_program_;
+
   if (initialized_) {
     glDeleteVertexArrays(1, &vao_);
     glDeleteBuffers(1, &vbo_);
@@ -85,10 +100,14 @@ GLWidget::~GLWidget() {
     glDeleteVertexArrays(1, &quad_vao_);
     glDeleteBuffers(1, &quad_vbo_);
 
-    glDeleteFramebuffers(1, &fbo_);
-    glDeleteRenderbuffers(1, &rbo_);
+    glDeleteFramebuffers(1, &g_fbo_);
+    glDeleteRenderbuffers(1, &g_rbo_);
+    glDeleteTextures(1, &g_normal_depth_texture_);
 
-    glDeleteTextures(1, &normalDepthTexture_);
+    glDeleteFramebuffers(COLOR_FBOS, c_fbo_);
+    glDeleteTextures(COLOR_FBOS, c_textures_);
+
+    delete[] c_textures_;
   }
 }
 
@@ -151,11 +170,16 @@ void GLWidget::initializeGL() {
   glCullFace(GL_BACK);
   glEnable(GL_DEPTH_TEST);
 
-  g_program_ = std::make_unique<QOpenGLShaderProgram>();
-  bool res = LoadProgram(gVertexShaderFile, gFragmentShaderFile, g_program_.get());
-
-  light_program_ = std::make_unique<QOpenGLShaderProgram>();
-  res &= LoadProgram(lightVertexShaderFile, lightFragmentShaderFile, light_program_.get());
+  g_program_ = new QOpenGLShaderProgram();
+  bool res = LoadProgram(g_vert_file, g_frag_file, *g_program_);
+  blur_program_ = new QOpenGLShaderProgram();
+  res &= LoadProgram(blur_vert_file, blur_frag_file, *blur_program_);
+  hbao_program_ = new QOpenGLShaderProgram();
+  res &= LoadProgram(hbao_vert_file, hbao_frag_file, *hbao_program_);
+  ao2_program_ = new QOpenGLShaderProgram();
+  res &= LoadProgram(ao2_vert_file, ao2_frag_file, *ao2_program_);
+  separable_ao_program_ = new QOpenGLShaderProgram();
+  res &= LoadProgram(separable_ao_vert_file, separable_ao_frag_file, *separable_ao_program_);
 
   if (!res) exit(0);
 
@@ -171,7 +195,16 @@ void GLWidget::initializeGL() {
 
   glBindVertexArray(0);
 
-  LoadModel("../models/sphere.ply");
+  if (!LoadModel("../models/sphere.ply")) {
+    return;
+  }
+
+  assert(COLOR_FBOS >= 0);
+  unsigned int size = static_cast<unsigned int>(COLOR_FBOS);
+  c_fbo_ = new GLuint[size];
+  c_textures_ = new GLuint[size];
+
+  ao_program_ = hbao_program_;
 
   initialized_ = true;
 }
@@ -185,32 +218,48 @@ void GLWidget::resizeGL(int w, int h) {
   camera_.SetProjection(kFieldOfView, kZNear, kZFar);
 
   if (resized_) {
-    glDeleteFramebuffers(1, &fbo_);
-    glDeleteRenderbuffers(1, &rbo_);
-    glDeleteTextures(1, &normalDepthTexture_);
+    glDeleteFramebuffers(1, &g_fbo_);
+    glDeleteRenderbuffers(1, &g_rbo_);
+    glDeleteTextures(1, &g_normal_depth_texture_);
+
+    glDeleteFramebuffers(COLOR_FBOS, c_fbo_);
+    glDeleteTextures(COLOR_FBOS, c_textures_);
   }
 
-  glGenFramebuffers(1, &fbo_);
-  glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
+  // G buffer
+  glGenFramebuffers(1, &g_fbo_);
+  glBindFramebuffer(GL_FRAMEBUFFER, g_fbo_);
 
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, w, h);
-
-  glGenTextures(1, &normalDepthTexture_);
-  glBindTexture(GL_TEXTURE_2D, normalDepthTexture_);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+  glGenTextures(1, &g_normal_depth_texture_);
+  glBindTexture(GL_TEXTURE_2D, g_normal_depth_texture_);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, normalDepthTexture_, 0);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, g_normal_depth_texture_, 0);
 
-  glGenRenderbuffers(1, &rbo_);
-  glBindRenderbuffer(GL_RENDERBUFFER, rbo_);
+  glGenRenderbuffers(1, &g_rbo_);
+  glBindRenderbuffer(GL_RENDERBUFFER, g_rbo_);
   glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, w, h);
-  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo_);
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, g_rbo_);
 
-  glBindRenderbuffer(GL_RENDERBUFFER, 0);
+  // Color buffers, used for post processing
+  glGenFramebuffers(COLOR_FBOS, c_fbo_);
 
-  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-       std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << glGetError() << std::endl;
+  glGenTextures(COLOR_FBOS, c_textures_);
+  for (GLsizei i = 0; i < COLOR_FBOS; ++i) {
+    glBindFramebuffer(GL_FRAMEBUFFER, c_fbo_[i]);
+    glBindTexture(GL_TEXTURE_2D, c_textures_[i]);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, c_textures_[i], 0);
+  }
+
+  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+    std::cout << "Framebuffer is not complete!" << glGetError() << std::endl;
+  }
 
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -258,13 +307,21 @@ void GLWidget::keyPressEvent(QKeyEvent *event) {
   if (event->key() == Qt::Key_D) camera_.Rotate(1);
 
   if (event->key() == Qt::Key_R) {
-    g_program_.reset();
-    g_program_ = std::make_unique<QOpenGLShaderProgram>();
-    LoadProgram(gVertexShaderFile, gFragmentShaderFile, g_program_.get());
-
-    light_program_.reset();
-    light_program_ = std::make_unique<QOpenGLShaderProgram>();
-    LoadProgram(lightVertexShaderFile, lightFragmentShaderFile, light_program_.get());
+    delete g_program_;
+    g_program_ = new QOpenGLShaderProgram();
+    LoadProgram(g_vert_file, g_frag_file, *g_program_);
+    delete blur_program_;
+    blur_program_ = new QOpenGLShaderProgram();
+    LoadProgram(blur_vert_file, blur_frag_file, *blur_program_);
+    delete hbao_program_;
+    hbao_program_ = new QOpenGLShaderProgram();
+    LoadProgram(hbao_vert_file, hbao_frag_file, *hbao_program_);
+    delete ao2_program_;
+    ao2_program_ = new QOpenGLShaderProgram();
+    LoadProgram(ao2_vert_file, ao2_frag_file, *ao2_program_);
+    delete separable_ao_program_;
+    separable_ao_program_ = new QOpenGLShaderProgram();
+    LoadProgram(separable_ao_vert_file, separable_ao_frag_file, *separable_ao_program_);
   }
 
   updateGL();
@@ -287,7 +344,7 @@ void GLWidget::paintGL() {
 
     if (mesh_ != nullptr) {
       // G Pass
-      glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
+      glBindFramebuffer(GL_FRAMEBUFFER, g_fbo_);
 
       glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -295,38 +352,87 @@ void GLWidget::paintGL() {
       glEnable(GL_DEPTH_TEST);
 
       g_program_->bind();
-      glUniformMatrix4fv( g_program_->uniformLocation("projection"), 1, GL_FALSE, projection.data());
+      glUniformMatrix4fv(g_program_->uniformLocation("projection"), 1, GL_FALSE, projection.data());
       glUniformMatrix4fv(g_program_->uniformLocation("view"), 1, GL_FALSE, view.data());
       glUniformMatrix4fv(g_program_->uniformLocation("model"), 1, GL_FALSE, model.data());
       glUniformMatrix3fv(g_program_->uniformLocation("normal_matrix"), 1, GL_FALSE, normal.data());
 
-      glBindTexture(GL_TEXTURE_2D, normalDepthTexture_);
+      glBindTexture(GL_TEXTURE_2D, g_normal_depth_texture_);
 
       // Draw model
       glBindVertexArray(vao_);
-      glDrawElements(GL_TRIANGLES, mesh_->faces_.size(), GL_UNSIGNED_INT, nullptr);
+      assert(mesh_->faces_.size() <= std::numeric_limits<std::vector<int>::size_type>::max());
+      glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(mesh_->faces_.size()), GL_UNSIGNED_INT, nullptr);
       glBindVertexArray(0);
 
-      // Light pass
-      glBindFramebuffer(GL_FRAMEBUFFER, 0);
+      bool h = true;
+      if (blur_ > 0) {
+        glBindFramebuffer(GL_FRAMEBUFFER, c_fbo_[h]);
+      } else {
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+      }
 
-      glClearColor(0.0f, 0.0f, 0.3f, 1.0f);
+      glClearColor(0.0f, 0.0f, 0.3f, 1.0f); // Not black!
       glClear(GL_COLOR_BUFFER_BIT);
 
       glDisable(GL_DEPTH_TEST);
 
-      light_program_->bind();
-
+      ao_program_->bind();
       glActiveTexture(GL_TEXTURE0);
-      glBindTexture(GL_TEXTURE_2D, normalDepthTexture_);
-      glUniform1i(light_program_->uniformLocation("normalDepthTexture"), 0);
+      glBindTexture(GL_TEXTURE_2D, g_normal_depth_texture_);
+      glUniform1i(ao_program_->uniformLocation("normalDepthTexture"), 0);
 
       glBindVertexArray(quad_vao_);
       glDrawArrays(GL_TRIANGLES, 0, 6);
       glBindVertexArray(0);
+
+      if (blur_ > 0) { // Blur. Render to ping pong color framebuffers
+        for (unsigned int i = 0; i < blur_; ++i) {
+          glBindFramebuffer(GL_FRAMEBUFFER, c_fbo_[!h]);
+          blur_program_->bind();
+          glUniform1i(blur_program_->uniformLocation("h"), h);
+          glActiveTexture(GL_TEXTURE0);
+          glBindTexture(GL_TEXTURE_2D, c_textures_[h]);
+
+          glBindVertexArray(quad_vao_);
+          glDrawArrays(GL_TRIANGLES, 0, 6);
+          glBindVertexArray(0);
+
+          h = !h;
+        }
+
+        // Blit color framebuffer to the default framebuffer. Could be done by rendering a quad.
+        glBlitNamedFramebuffer(c_fbo_[h], 0, 0, 0, width_, height_, 0, 0, width_, height_, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+      }
     } else {
       glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
       glClear(GL_COLOR_BUFFER_BIT);
     }
   }
+}
+
+void GLWidget::set_hbao(bool v) {
+  if (v) {
+    ao_program_ = hbao_program_;
+  }
+  update();
+}
+
+void GLWidget::set_ao2(bool v) {
+  if (v) {
+    ao_program_ = ao2_program_;
+  }
+  update();
+}
+
+void GLWidget::set_separable_ao(bool v) {
+  if (v) {
+    ao_program_ = separable_ao_program_;
+  }
+  update();
+}
+
+void GLWidget::set_blur(int amount) {
+  blur_ = amount;
+  update();
 }

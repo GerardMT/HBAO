@@ -42,11 +42,15 @@ HEADERS  += \
 FORMS    += \
     main_window.ui
 
-OTHER_FILES += \
-    shaders/light.frag
-
 DISTFILES += \
     shaders/g.frag \
     shaders/g.vert \
-    shaders/light.vert
+    shaders/blur.vert \
+    shaders/blur.frag \
+    shaders/hbao.vert \
+    shaders/hbao.frag \
+    shaders/ao2.vert \
+    shaders/ao2.frag \
+    shaders/separable_ao.vert \
+    shaders/separable_ao.frag
 
