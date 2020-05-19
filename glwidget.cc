@@ -14,7 +14,7 @@
 namespace {
 
 const double kFieldOfView = 60;
-const double kZNear = 0.0001;
+const double kZNear = 1;
 const double kZFar = 10;
 
 const char g_vert_file[] = "../shaders/g.vert";

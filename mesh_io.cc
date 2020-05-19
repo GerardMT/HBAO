@@ -23,7 +23,7 @@ void Add3Items(T i1, T i2, T i3, size_t index, std::vector<T> *vector) {
   (*vector)[index + 2] = i3;
 }
 
-bool ReadPlyHeader(std::ifstream *fin, int *vertices, int *faces) {
+bool ReadPlyHeader(std::ifstream *fin, int *vertices, int *faces, bool *binary) {
   char line[100];
 
   fin->getline(line, 100);
@@ -32,9 +32,10 @@ bool ReadPlyHeader(std::ifstream *fin, int *vertices, int *faces) {
   *vertices = 0;
   fin->getline(line, 100);
   while (strncmp(line, "end_header", 10) != 0) {
-    if (strncmp(line, "element vertex", 14) == 0) *vertices = atoi(&line[15]);
+    if (strncmp(line, "format", 6) == 0)  *binary = strncmp(&line[7], "binary", 5) == 0;
+    else if (strncmp(line, "element vertex", 14) == 0) *vertices = atoi(&line[15]);
+    else if (strncmp(line, "element face", 12) == 0) *faces = atoi(&line[13]);
     fin->getline(line, 100);
-    if (strncmp(line, "element face", 12) == 0) *faces = atoi(&line[13]);
   }
 
   if (*vertices <= 0) return false;
@@ -46,7 +47,7 @@ bool ReadPlyHeader(std::ifstream *fin, int *vertices, int *faces) {
   return true;
 }
 
-void ReadPlyVertices(std::ifstream *fin, TriangleMesh *mesh) {
+void ReadPlyVerticesBinary(std::ifstream *fin, TriangleMesh *mesh) {
   const size_t kVertices = mesh->vertices_.size() / 3;
   for (size_t i = 0; i < kVertices; ++i) {
     float x, y, z;
@@ -58,7 +59,20 @@ void ReadPlyVertices(std::ifstream *fin, TriangleMesh *mesh) {
   }
 }
 
-void ReadPlyFaces(std::ifstream *fin, TriangleMesh *mesh) {
+void ReadPlyVerticesASCII(std::ifstream *fin, TriangleMesh *mesh) {
+  const size_t kVertices = mesh->vertices_.size() / 3;
+  for (size_t i = 0; i < kVertices; ++i) {
+    float x, y, z;
+
+    *fin >> x;
+    *fin >> y;
+    *fin >> z;
+
+    Add3Items(x, y, z, i * 3, &(mesh->vertices_));
+  }
+}
+
+void ReadPlyFacesBinary(std::ifstream *fin, TriangleMesh *mesh) {
   unsigned char vertex_per_face;
 
   const size_t kFaces = mesh->faces_.size() / 3;
@@ -71,6 +85,23 @@ void ReadPlyFaces(std::ifstream *fin, TriangleMesh *mesh) {
     fin->read(reinterpret_cast<char *>(&v1), sizeof(int));
     fin->read(reinterpret_cast<char *>(&v2), sizeof(int));
     fin->read(reinterpret_cast<char *>(&v3), sizeof(int));
+    Add3Items(v1, v2, v3, i * 3, &(mesh->faces_));
+  }
+}
+
+void ReadPlyFacesASCII(std::ifstream *fin, TriangleMesh *mesh) {
+  unsigned int vertex_per_face;
+
+  const size_t kFaces = mesh->faces_.size() / 3;
+  for (size_t i = 0; i < kFaces; ++i) {
+    int v1, v2, v3;
+    *fin >> vertex_per_face;
+    assert(vertex_per_face == 3);
+
+    *fin >> v1;
+    *fin >> v2;
+    *fin >> v3;
+
     Add3Items(v1, v2, v3, i * 3, &(mesh->faces_));
   }
 }
@@ -165,16 +196,25 @@ bool ReadFromPly(const std::string &filename, TriangleMesh *mesh) {
   if (!fin.is_open() || !fin.good()) return false;
 
   int vertices = 0, faces = 0;
-  if (!ReadPlyHeader(&fin, &vertices, &faces)) {
+  bool binary;
+  if (!ReadPlyHeader(&fin, &vertices, &faces, &binary)) {
     fin.close();
     return false;
   }
 
   mesh->vertices_.resize(static_cast<size_t>(vertices) * 3);
-  ReadPlyVertices(&fin, mesh);
+  if (binary) {
+    ReadPlyVerticesBinary(&fin, mesh);
+  } else {
+    ReadPlyVerticesASCII(&fin, mesh);
+  }
 
   mesh->faces_.resize(static_cast<size_t>(faces) * 3);
-  ReadPlyFaces(&fin, mesh);
+  if (binary) {
+    ReadPlyFacesBinary(&fin, mesh);
+  } else {
+    ReadPlyFacesASCII(&fin, mesh);
+  }
 
   fin.close();
 

@@ -12,10 +12,8 @@ flat out vec3 normal_view;
 smooth out float depth_view;
 
 void main(void) {
-  normal_view = normal_matrix * normal;
+  normal_view = normalize(normal_matrix * normal);
 
-  vec4 pos_view = view * model * vec4(vert, 1.0);
-  depth_view = pos_view.z;
-
-  gl_Position = projection * pos_view;
+  gl_Position = projection * view * model * vec4(vert, 1.0);
+  depth_view = (gl_Position.z / gl_Position.w + 1.0) / 2.0;
 }
