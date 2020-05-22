@@ -8,6 +8,8 @@ uniform mat4 projection;
 uniform float aspect_ratio;
 uniform float tan_half_fov;
 
+uniform vec2 pixel_size; // TODO Send uniform
+
 uniform sampler2D normalDepthTexture;
 
 out vec4 frag_color;
@@ -16,7 +18,7 @@ const float PI = 3.14159265359;
 
 const int DIRECTIONS = 6;
 const int STEPS = 6;
-const float RADIUS = 1.0;
+const float RADIUS = 2.0;
 
 void main (void) {
   vec4 p_g_buffer = texture(normalDepthTexture, pos);
@@ -29,31 +31,32 @@ void main (void) {
     return;
   }
 
-  float p_view_z = -projection[3][2] / (2.0 * p_depth - 1.0 + projection[2][2]);
-  float p_view_x = pos_ray.x * -p_view_z;
-  float p_view_y = pos_ray.y * -p_view_z;
-  vec3 p_view = vec3(p_view_x, p_view_y, p_view_z);
+  vec3 p_view;
+  p_view.z = -projection[3][2] / (2.0 * p_depth - 1.0 + projection[2][2]);
+  p_view.x = pos_ray.x * -p_view.z;
+  p_view.y = pos_ray.y * -p_view.z;
 
   float sum = 0.0;
   const float end = 2.0 * PI;
-  for (float d_a = 0.0; d_a < end; d_a += end / float(DIRECTIONS)) { // DEBUG
-    vec3 d_inc = vec3(cos(d_a), sin(d_a), 0.0) * RADIUS / STEPS;
+  const float step = end / float(DIRECTIONS);
+  for (float d_a = 0.0; d_a < end; d_a += step) {
+    vec2 d_screen_inc = vec2(cos(d_a), sin(d_a)) * RADIUS; // TODO Snap
 
     float h_a = 0.0;
     float r = RADIUS;
 
     vec3 d_view; // Used outside the loop for computing the tangent vector
-    vec3 s_view = p_view;
+    vec3 s_view; // Also used outside
+
+    vec2 s_screen = pos;
     for (int i = 0; i < STEPS; ++i) {
-      s_view += d_inc;
+      s_screen += d_screen_inc;
 
-      vec4 s_tan = projection * vec4(s_view, 1.0);
-      s_tan.xy = (s_tan.xy / s_tan.w) * 0.5 + 0.5;
+      float s_depth = texture(normalDepthTexture, s_screen.xy).a;
 
-      float s_depth = texture(normalDepthTexture, s_tan.xy).a;
       s_view.z = -projection[3][2] / (2.0 * s_depth - 1.0 + projection[2][2]);
-      //s_view.x = s_tan.x * aspect_ratio * tan_half_fov -s_view.z;
-      //s_view.y = s_tan.y * tan_half_fov * -s_view.z;
+      s_view.x = (s_screen.x * 2.0 - 1.0) * aspect_ratio * tan_half_fov -s_view.z;
+      s_view.y = (s_screen.y * 2.0 - 1.0) * tan_half_fov * -s_view.z;
 
       vec3 d_view = s_view - p_view; // Not normalized
 
@@ -80,6 +83,5 @@ void main (void) {
   }
 
   float ao = 1.0 - (sum / float(DIRECTIONS));
-  ao /= 2.0;
   frag_color = vec4(ao, ao, ao, 1.0);
 }
