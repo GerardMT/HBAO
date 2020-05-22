@@ -14,7 +14,7 @@
 namespace {
 
 const double kFieldOfView = 60;
-const double kZNear = 1;
+const double kZNear = 0.5;
 const double kZFar = 10;
 
 const char g_vert_file[] = "../shaders/g.vert";
@@ -195,7 +195,7 @@ void GLWidget::initializeGL() {
 
   glBindVertexArray(0);
 
-  if (!LoadModel("../models/sphere.ply")) {
+  if (!LoadModel("../models/ao_1.ply")) {
     return;
   }
 
@@ -216,6 +216,9 @@ void GLWidget::resizeGL(int w, int h) {
 
   camera_.SetViewport(0, 0, w, h);
   camera_.SetProjection(kFieldOfView, kZNear, kZFar);
+
+  aspect_ratio = w / h;
+  tan_half_fov = static_cast<GLfloat>(tan((kFieldOfView / 2.0) * (M_PI / 180.0)));
 
   if (resized_) {
     glDeleteFramebuffers(1, &g_fbo_);
@@ -357,8 +360,6 @@ void GLWidget::paintGL() {
       glUniformMatrix4fv(g_program_->uniformLocation("model"), 1, GL_FALSE, model.data());
       glUniformMatrix3fv(g_program_->uniformLocation("normal_matrix"), 1, GL_FALSE, normal.data());
 
-      glBindTexture(GL_TEXTURE_2D, g_normal_depth_texture_);
-
       // Draw model
       glBindVertexArray(vao_);
       assert(mesh_->faces_.size() <= std::numeric_limits<std::vector<int>::size_type>::max());
@@ -378,6 +379,10 @@ void GLWidget::paintGL() {
       glDisable(GL_DEPTH_TEST);
 
       ao_program_->bind();
+      glUniformMatrix4fv(ao_program_->uniformLocation("projection"), 1, GL_FALSE, projection.data());
+      glUniform1f(ao_program_->uniformLocation("aspect_ratio"), aspect_ratio);
+      glUniform1f(ao_program_->uniformLocation("tan_half_fov"), tan_half_fov);
+
       glActiveTexture(GL_TEXTURE0);
       glBindTexture(GL_TEXTURE_2D, g_normal_depth_texture_);
       glUniform1i(ao_program_->uniformLocation("normalDepthTexture"), 0);
@@ -433,6 +438,6 @@ void GLWidget::set_separable_ao(bool v) {
 }
 
 void GLWidget::set_blur(int amount) {
-  blur_ = amount;
+  blur_ = static_cast<unsigned int>(amount);
   update();
 }

@@ -119,9 +119,12 @@ class GLWidget : public QGLWidget {
   GLuint quad_vao_;
   GLuint quad_vbo_;
 
+  GLfloat aspect_ratio;
+  GLfloat tan_half_fov;
+
   bool resized_ = false;
 
-  int blur_ = 0;
+  unsigned int blur_ = 0;
 
  protected slots:
   /**

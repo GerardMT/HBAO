@@ -15,5 +15,5 @@ void main(void) {
   normal_view = normalize(normal_matrix * normal);
 
   gl_Position = projection * view * model * vec4(vert, 1.0);
-  depth_view = (gl_Position.z / gl_Position.w + 1.0) / 2.0;
+  depth_view = (gl_Position.z / gl_Position.w) * 0.5 + 0.5;
 }
