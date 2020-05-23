@@ -14,7 +14,7 @@
 namespace {
 
 const double kFieldOfView = 60;
-const double kZNear = 0.5;
+const double kZNear = 0.1;
 const double kZFar = 10;
 
 const char g_vert_file[] = "../shaders/g.vert";
@@ -220,6 +220,9 @@ void GLWidget::resizeGL(int w, int h) {
   aspect_ratio = w / h;
   tan_half_fov = static_cast<GLfloat>(tan((kFieldOfView / 2.0) * (M_PI / 180.0)));
 
+  pixel_size.x = 1.0f / w;
+  pixel_size.y = 1.0f / h;
+
   if (resized_) {
     glDeleteFramebuffers(1, &g_fbo_);
     glDeleteRenderbuffers(1, &g_rbo_);
@@ -382,6 +385,7 @@ void GLWidget::paintGL() {
       glUniformMatrix4fv(ao_program_->uniformLocation("projection"), 1, GL_FALSE, projection.data());
       glUniform1f(ao_program_->uniformLocation("aspect_ratio"), aspect_ratio);
       glUniform1f(ao_program_->uniformLocation("tan_half_fov"), tan_half_fov);
+      glUniform2f(ao_program_->uniformLocation("pixel_size"), pixel_size[0], pixel_size[1]);
 
       glActiveTexture(GL_TEXTURE0);
       glBindTexture(GL_TEXTURE_2D, g_normal_depth_texture_);

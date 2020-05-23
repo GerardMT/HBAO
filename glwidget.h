@@ -9,8 +9,8 @@
 #include <QMouseEvent>
 #include <QOpenGLShaderProgram>
 #include <QString>
-
 #include <memory>
+#include <glm/glm.hpp>
 
 #include "./camera.h"
 #include "./triangle_mesh.h"
@@ -121,6 +121,8 @@ class GLWidget : public QGLWidget {
 
   GLfloat aspect_ratio;
   GLfloat tan_half_fov;
+
+  glm::vec2 pixel_size;
 
   bool resized_ = false;
 
