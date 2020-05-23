@@ -341,12 +341,11 @@ void GLWidget::paintGL() {
     Eigen::Matrix4f view = camera_.SetView();
     Eigen::Matrix4f model = camera_.SetModel();
 
-    Eigen::Matrix4f t = view * model;
-    Eigen::Matrix3f normal;
-    for (int i = 0; i < 3; ++i)
-      for (int j = 0; j < 3; ++j) normal(i, j) = t(i, j);
-
-    normal = normal.inverse().transpose();
+//    Eigen::Matrix4f t = view * model;
+//    Eigen::Matrix3f normal;
+//    for (int i = 0; i < 3; ++i)
+//      for (int j = 0; j < 3; ++j) normal(i, j) = t(i, j);
+//    normal = normal.inverse().transpose();
 
     if (mesh_ != nullptr) {
       // G Pass
@@ -361,7 +360,7 @@ void GLWidget::paintGL() {
       glUniformMatrix4fv(g_program_->uniformLocation("projection"), 1, GL_FALSE, projection.data());
       glUniformMatrix4fv(g_program_->uniformLocation("view"), 1, GL_FALSE, view.data());
       glUniformMatrix4fv(g_program_->uniformLocation("model"), 1, GL_FALSE, model.data());
-      glUniformMatrix3fv(g_program_->uniformLocation("normal_matrix"), 1, GL_FALSE, normal.data());
+//      glUniformMatrix3fv(g_program_->uniformLocation("normal_matrix"), 1, GL_FALSE, normal.data());
 
       // Draw model
       glBindVertexArray(vao_);
