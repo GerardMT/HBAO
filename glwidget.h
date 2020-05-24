@@ -100,7 +100,7 @@ class GLWidget : public QGLWidget {
    */
   float height_;
 
-  QOpenGLShaderProgram *ao_program_;
+  unsigned int ao_program_ = 0;
 
   GLuint g_fbo_;
   GLuint g_rbo_;
@@ -118,6 +118,8 @@ class GLWidget : public QGLWidget {
 
   GLuint quad_vao_;
   GLuint quad_vbo_;
+
+  GLuint noise_texture_;
 
   GLfloat aspect_ratio;
   GLfloat tan_half_fov;

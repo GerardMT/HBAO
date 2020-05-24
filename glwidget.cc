@@ -77,6 +77,16 @@ bool LoadProgram(const std::string &vertex, const std::string &fragment, QOpenGL
   return res;
 }
 
+bool load_noise_image(const std::string &path) {
+  QImage image;
+  bool res = image.load(path.c_str());
+  if (res) {
+    QImage gl_image = image.mirrored();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R16, image.width(), image.height(), 0, GL_RED, GL_UNSIGNED_SHORT, image.bits());
+  }
+  return res;
+}
+
 }  // namespace
 
 GLWidget::GLWidget(QWidget *parent)
@@ -106,6 +116,8 @@ GLWidget::~GLWidget() {
 
     glDeleteFramebuffers(COLOR_FBOS, c_fbo_);
     glDeleteTextures(COLOR_FBOS, c_textures_);
+
+    glDeleteTextures(1, &noise_texture_);
 
     delete[] c_textures_;
   }
@@ -199,12 +211,18 @@ void GLWidget::initializeGL() {
     return;
   }
 
+  glGenTextures(1, &noise_texture_);
+  glBindTexture(GL_TEXTURE_2D, noise_texture_);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  load_noise_image("../textures/noise.png"); // http://momentsingraphics.de/BlueNoise.html
+
   assert(COLOR_FBOS >= 0);
   unsigned int size = static_cast<unsigned int>(COLOR_FBOS);
   c_fbo_ = new GLuint[size];
   c_textures_ = new GLuint[size];
-
-  ao_program_ = hbao_program_;
 
   initialized_ = true;
 }
@@ -380,22 +398,42 @@ void GLWidget::paintGL() {
 
       glDisable(GL_DEPTH_TEST);
 
-      ao_program_->bind();
-      glUniformMatrix4fv(ao_program_->uniformLocation("projection"), 1, GL_FALSE, projection.data());
-      glUniform1f(ao_program_->uniformLocation("aspect_ratio"), aspect_ratio);
-      glUniform1f(ao_program_->uniformLocation("tan_half_fov"), tan_half_fov);
-      glUniform2f(ao_program_->uniformLocation("pixel_size"), pixel_size[0], pixel_size[1]);
+      switch (ao_program_) {
+        case 0: {
+          hbao_program_->bind();
+          glUniformMatrix4fv(hbao_program_->uniformLocation("projection"), 1, GL_FALSE, projection.data());
+          glUniform1f(hbao_program_->uniformLocation("aspect_ratio"), aspect_ratio);
+          glUniform1f(hbao_program_->uniformLocation("tan_half_fov"), tan_half_fov);
+          glUniform2f(hbao_program_->uniformLocation("pixel_size"), pixel_size[0], pixel_size[1]);
 
-      glActiveTexture(GL_TEXTURE0);
-      glBindTexture(GL_TEXTURE_2D, g_normal_depth_texture_);
-      glUniform1i(ao_program_->uniformLocation("normalDepthTexture"), 0);
+          glActiveTexture(GL_TEXTURE0 + 0);
+          glBindTexture(GL_TEXTURE_2D, g_normal_depth_texture_);
+          glUniform1i(hbao_program_->uniformLocation("normalDepthTexture"), 0);
+          glActiveTexture(GL_TEXTURE0 + 1);
+          glBindTexture(GL_TEXTURE_2D, noise_texture_);
+          glUniform1i(hbao_program_->uniformLocation("noise_texture"), 1);
+          break;
+        }
+      case 1: {
+          ao2_program_->bind();
+          break;
+        }
+      case 2: {
+          separable_ao_program_->bind();
+          break;
+        }
+      }
 
       glBindVertexArray(quad_vao_);
       glDrawArrays(GL_TRIANGLES, 0, 6);
       glBindVertexArray(0);
 
       if (blur_ > 0) { // Blur. Render to ping pong color framebuffers
-        for (unsigned int i = 0; i < blur_; ++i) {
+        glActiveTexture(GL_TEXTURE0 + 0);
+        glBindTexture(GL_TEXTURE_2D, g_normal_depth_texture_);
+        glUniform1i(blur_program_->uniformLocation("normalDepthTexture"), 0);
+
+        for (unsigned int i = 0; i < blur_ * 2; ++i) {
           glBindFramebuffer(GL_FRAMEBUFFER, c_fbo_[!h]);
           blur_program_->bind();
           glUniform1i(blur_program_->uniformLocation("h"), h);
@@ -421,21 +459,21 @@ void GLWidget::paintGL() {
 
 void GLWidget::set_hbao(bool v) {
   if (v) {
-    ao_program_ = hbao_program_;
+    ao_program_ = 0;
   }
   update();
 }
 
 void GLWidget::set_ao2(bool v) {
   if (v) {
-    ao_program_ = ao2_program_;
+    ao_program_ = 1;
   }
   update();
 }
 
 void GLWidget::set_separable_ao(bool v) {
   if (v) {
-    ao_program_ = separable_ao_program_;
+    ao_program_ = 2;
   }
   update();
 }
