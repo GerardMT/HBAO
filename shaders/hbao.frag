@@ -46,7 +46,7 @@ float random(vec2 st) {
 }
 
 void main (void) {
-  vec4 p_g_buffer = texture(normalDepthTexture, pos + 1.0);
+  vec4 p_g_buffer = texture(normalDepthTexture, pos);
 
   vec3 n_view = p_g_buffer.rgb;
   float p_depth = p_g_buffer.a;
@@ -59,7 +59,6 @@ void main (void) {
   vec3 p_view = unproject(screen_ray, p_depth);
 
   float sum = 0.0;
-  int samples = 0;
 
   float start = random(pos) * (2.0 * PI); // Random starting angle. // BUG: Should be 0.5 * PI
   float end = start + (PI * 0.5);
@@ -84,16 +83,10 @@ void main (void) {
       float ao_pre = 0.0;
       float wao = 0.0;
 
-      int steps_performed = STEPS;
-
       vec2 s_texture = pos;
       for (int j = 0; j < STEPS; ++j) { // Marching on the heighfield.
         s_texture += r_texture_inc * random(pos + j);
         s_texture = round(s_texture / pixel_size) * pixel_size + (pixel_size / 2.0); // Snap to pixels centers.
-        if (s_texture.x < 0.0 || s_texture.x > 1.0 || s_texture.y < 0.0 || s_texture.y > 1.0) {
-          //--steps_performed;
-          //continue;
-        }
 
         float s_depth = texture(normalDepthTexture, s_texture.xy).a;
         if (s_depth == 0.0) {
@@ -120,12 +113,9 @@ void main (void) {
       }
 
       sum += wao;
-      if (steps_performed > 0) {
-        ++samples;
-      }
     }
   }
 
-  float ao = 1.0 - (sum * STRENGTH / max(1.0, float(samples)));
+  float ao = 1.0 - (sum * STRENGTH / float(4 * DIRECTIONS));
   frag_color = vec4(ao, ao, ao, 1.0);
 }
