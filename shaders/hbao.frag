@@ -19,18 +19,17 @@ out vec4 frag_color;
 const float PI = 3.14159265359;
 
 const mat2 UNIFORM_DIRECTIONS[4] = mat2[](
-  mat2(cos(0),        sin(0),        -sin(0),         cos(0)),
-  mat2(cos(PI * 0.5), sin(PI * 0.5), -sin(PI * 0.5),  cos(PI * 0.5)),
-  mat2(cos(PI),       sin(PI),       -sin(PI),        cos(PI)),
-  mat2(cos(PI * 2.0), sin(PI * 2.0), -sin(PI * 2.0),  cos(PI * 2.0))
+  mat2(cos(0),              sin(0),              -sin(0),              cos(0)),
+  mat2(cos(PI * 0.5),       sin(PI * 0.5),       -sin(PI * 0.5),       cos(PI * 0.5)),
+  mat2(cos(PI),             sin(PI),             -sin(PI),             cos(PI)),
+  mat2(cos(PI * 3.0 / 2.0), sin(PI * 3.0 / 2.0), -sin(PI * 3.0 / 2.0), cos(PI * 3.0 / 2.0))
 );
 
-const int DIRECTIONS = 2;
+const int DIRECTIONS = 4;
 const int STEPS = 6;
-const float RADIUS = 0.3;
-const float T_BIAS = 45.0 * (PI / 180.0);
+const float RADIUS = 0.2;
+const float T_BIAS = 30.0 * (PI / 180.0);
 const float STRENGTH = 1.0;
-
 
 vec3 unproject (vec2 screen_ray, float p_depth) {
   vec3 p_view;
@@ -60,24 +59,21 @@ void main (void) {
 
   float sum = 0.0;
 
-  float start = random(pos) * (2.0 * PI); // Random starting angle. // BUG: Should be 0.5 * PI
+  float start = random(pos) * (PI * 0.5); // Random starting angle.
   float end = start + (PI * 0.5);
   const float step = (PI * 0.5) / float(DIRECTIONS);
   for (float d_a = start; d_a < end; d_a += step) { // Iterate over a single quadrant.
-    vec3 r_view_quad = p_view + vec3(cos(d_a), sin(d_a), 0.0) * RADIUS;
-
-    vec4 r_clip_quad = projection * vec4(r_view_quad, 1.0); // Project shpere from veiw to texture sapce.
-    vec2 r_texture_quad = (r_clip_quad.xy / r_clip_quad.w) * 0.5 + 0.5; // Skip dividing by w because is 0.
-
-    vec2 r_texture_inc_quad = (r_texture_quad - pos) / STEPS;
-
-    vec3 u_view_quad = normalize(r_view_quad - p_view);
-    vec3 t_view_quad = normalize((r_view_quad - dot(u_view_quad, n_view) * n_view) - p_view); // Project point q_view to plane (p_view, n_view).
-
-    float t_a = atan(t_view_quad.z, length(t_view_quad.xy)) + T_BIAS;
-
     for (int i = 0; i < 4; ++i) { // Uniform distribution of directions (4 quadrants).
-      vec2 r_texture_inc = UNIFORM_DIRECTIONS[i] * r_texture_inc_quad;
+      vec3 q_view = p_view + vec3(UNIFORM_DIRECTIONS[i] * vec2(cos(d_a) * RADIUS, sin(d_a) * RADIUS), 0.0); // Sphere end point.
+
+      vec4 q_clip = projection * vec4(q_view, 1.0); // Project shpere end point from veiw to texture sapce.
+      vec2 q_texture = (q_clip.xy / q_clip.w) * 0.5 + 0.5;
+
+      vec2 r_texture_inc = (q_texture- pos) / STEPS;
+
+      vec3 t_view = normalize((q_view - dot(q_view - p_view, n_view) * n_view) - p_view); // Project point q_view to plane (p_view, n_view).
+
+      float t_a = atan(t_view.z, length(t_view.xy)) + T_BIAS;
 
       float h_a_pre = t_a;
       float ao_pre = 0.0;
@@ -86,22 +82,23 @@ void main (void) {
       vec2 s_texture = pos;
       for (int j = 0; j < STEPS; ++j) { // Marching on the heighfield.
         s_texture += r_texture_inc * random(pos + j);
-        s_texture = round(s_texture / pixel_size) * pixel_size + (pixel_size / 2.0); // Snap to pixels centers.
+        vec2 s_texture_snap = (round(s_texture / pixel_size) + 0.5) * pixel_size; // Snap to pixels centers.
 
-        float s_depth = texture(normalDepthTexture, s_texture.xy).a;
+        float s_depth = texture(normalDepthTexture, s_texture_snap.xy).a;
         if (s_depth == 0.0) {
           continue;
         }
 
-        vec2 s_screen_ray = (s_texture * 2.0 - 1.0) * tan_half_fov;
+        vec2 s_screen_ray = (s_texture_snap * 2.0 - 1.0) * tan_half_fov;
         s_screen_ray.x *= aspect_ratio;
         vec3 s_view = unproject(s_screen_ray, s_depth);
 
-        vec3 d_view = s_view - p_view;
+        vec3 d_view = s_view - p_view;// BUG: Normalized does not work.
 
         float h_a = atan(d_view.z / length(d_view.xy));
+
         float d_view_len = length(d_view);
-        if (h_a > h_a_pre  && d_view_len <= RADIUS) {
+        if (h_a > h_a_pre && d_view_len <= RADIUS) {
           float r_norm = d_view_len / RADIUS;
 
           float ao = sin(h_a) - sin(t_a); // Per sample attenuation.
