@@ -130,6 +130,12 @@ class GLWidget : public QGLWidget {
 
   unsigned int blur_ = 0;
 
+  GLint hbao_directions = 3;
+  GLint hbao_steps = 6;
+  GLfloat hbao_radius = 0.4f;
+  GLfloat hbao_t_bias = 30.0f * (M_PI / 180.0f);
+  GLfloat hbao_strength = 1.0f;
+
  protected slots:
   /**
    * @brief paintGL Function that handles rendering the scene.
@@ -143,6 +149,16 @@ class GLWidget : public QGLWidget {
   void set_separable_ao(bool v);
 
   void set_blur(int amount);
+
+  void set_hbao_directions(int v);
+
+  void set_hbao_steps(int v);
+
+  void set_hbao_radius(double v);
+
+  void set_hbao_t_bias(double v);
+
+  void set_hbao_strength(double v);
 
  signals:
   /**

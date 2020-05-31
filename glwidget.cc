@@ -407,6 +407,11 @@ void GLWidget::paintGL() {
           glUniform1f(hbao_program_->uniformLocation("aspect_ratio"), aspect_ratio);
           glUniform1f(hbao_program_->uniformLocation("tan_half_fov"), tan_half_fov);
           glUniform2f(hbao_program_->uniformLocation("pixel_size"), pixel_size[0], pixel_size[1]);
+          glUniform1i(hbao_program_->uniformLocation("directions"), hbao_directions);
+          glUniform1i(hbao_program_->uniformLocation("steps"), hbao_steps);
+          glUniform1f(hbao_program_->uniformLocation("radius"), hbao_radius);
+          glUniform1f(hbao_program_->uniformLocation("t_bias"), hbao_t_bias);
+          glUniform1f(hbao_program_->uniformLocation("strength"), hbao_strength);
 
           glActiveTexture(GL_TEXTURE0 + 0);
           glBindTexture(GL_TEXTURE_2D, g_normal_depth_texture_);
@@ -438,15 +443,18 @@ void GLWidget::paintGL() {
 
       if (blur_ > 0) { // Blur. Render to ping pong color framebuffers
         glActiveTexture(GL_TEXTURE0 + 0);
-        glBindTexture(GL_TEXTURE_2D, g_normal_depth_texture_);
         glUniform1i(blur_program_->uniformLocation("normalDepthTexture"), 0);
 
-        for (unsigned int i = 0; i < blur_ * 2; ++i) {
-          glBindFramebuffer(GL_FRAMEBUFFER, c_fbo_[!h]);
+        unsigned int passes = blur_ * 2;
+        for (unsigned int i = 0; i < passes; ++i) {
+          if (i + 1 >= passes) {
+              glBindFramebuffer(GL_FRAMEBUFFER, 0);
+          } else {
+              glBindFramebuffer(GL_FRAMEBUFFER, c_fbo_[!h]);
+          }
+          glBindTexture(GL_TEXTURE_2D, c_textures_[h]);
           blur_program_->bind();
           glUniform1i(blur_program_->uniformLocation("h"), h);
-          glActiveTexture(GL_TEXTURE0);
-          glBindTexture(GL_TEXTURE_2D, c_textures_[h]);
 
           glBindVertexArray(quad_vao_);
           glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -454,9 +462,6 @@ void GLWidget::paintGL() {
 
           h = !h;
         }
-
-        // Blit color framebuffer to the default framebuffer. Could be done by rendering a quad.
-        glBlitNamedFramebuffer(c_fbo_[h], 0, 0, 0, width_, height_, 0, 0, width_, height_, GL_COLOR_BUFFER_BIT, GL_NEAREST);
       }
     } else {
       glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -490,3 +495,29 @@ void GLWidget::set_blur(int amount) {
   blur_ = static_cast<unsigned int>(amount);
   update();
 }
+
+void GLWidget::set_hbao_directions(int v) {
+  hbao_directions = v;
+  update();
+}
+
+void GLWidget::set_hbao_steps(int v) {
+  hbao_steps = v;
+  update();
+}
+
+void GLWidget::set_hbao_radius(double v) {
+  hbao_radius = static_cast<float>(v);
+  update();
+}
+
+void GLWidget::set_hbao_t_bias(double v) {
+  hbao_t_bias = static_cast<float>(v) * (M_PI / 180.0f);
+  update();
+}
+
+void GLWidget::set_hbao_strength(double v) {
+  hbao_strength = static_cast<float>(v);
+  update();
+}
+

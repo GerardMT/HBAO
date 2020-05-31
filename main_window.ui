@@ -86,7 +86,7 @@
            <x>0</x>
            <y>0</y>
            <width>211</width>
-           <height>121</height>
+           <height>431</height>
           </rect>
          </property>
          <property name="title">
@@ -96,7 +96,7 @@
           <property name="geometry">
            <rect>
             <x>10</x>
-            <y>90</y>
+            <y>400</y>
             <width>151</width>
             <height>25</height>
            </rect>
@@ -125,7 +125,7 @@
           <property name="geometry">
            <rect>
             <x>10</x>
-            <y>60</y>
+            <y>370</y>
             <width>113</width>
             <height>25</height>
            </rect>
@@ -134,14 +134,153 @@
            <string>AO2</string>
           </property>
          </widget>
+         <widget class="QLabel" name="label">
+          <property name="geometry">
+           <rect>
+            <x>30</x>
+            <y>60</y>
+            <width>131</width>
+            <height>19</height>
+           </rect>
+          </property>
+          <property name="text">
+           <string>Directions</string>
+          </property>
+         </widget>
+         <widget class="QLabel" name="label_2">
+          <property name="geometry">
+           <rect>
+            <x>30</x>
+            <y>120</y>
+            <width>66</width>
+            <height>19</height>
+           </rect>
+          </property>
+          <property name="text">
+           <string>Steps</string>
+          </property>
+         </widget>
+         <widget class="QLabel" name="label_3">
+          <property name="geometry">
+           <rect>
+            <x>30</x>
+            <y>180</y>
+            <width>66</width>
+            <height>19</height>
+           </rect>
+          </property>
+          <property name="text">
+           <string>Radius</string>
+          </property>
+         </widget>
+         <widget class="QSpinBox" name="spinBox_directions">
+          <property name="geometry">
+           <rect>
+            <x>30</x>
+            <y>80</y>
+            <width>126</width>
+            <height>42</height>
+           </rect>
+          </property>
+          <property name="value">
+           <number>3</number>
+          </property>
+         </widget>
+         <widget class="QSpinBox" name="spinBox_steps">
+          <property name="geometry">
+           <rect>
+            <x>30</x>
+            <y>140</y>
+            <width>126</width>
+            <height>42</height>
+           </rect>
+          </property>
+          <property name="value">
+           <number>6</number>
+          </property>
+         </widget>
+         <widget class="QDoubleSpinBox" name="doubleSpinBox_radius">
+          <property name="geometry">
+           <rect>
+            <x>30</x>
+            <y>200</y>
+            <width>147</width>
+            <height>42</height>
+           </rect>
+          </property>
+          <property name="singleStep">
+           <double>0.100000000000000</double>
+          </property>
+          <property name="value">
+           <double>0.400000000000000</double>
+          </property>
+         </widget>
+         <widget class="QDoubleSpinBox" name="doubleSpinBox_bias">
+          <property name="geometry">
+           <rect>
+            <x>30</x>
+            <y>260</y>
+            <width>147</width>
+            <height>42</height>
+           </rect>
+          </property>
+          <property name="singleStep">
+           <double>5.000000000000000</double>
+          </property>
+          <property name="value">
+           <double>30.000000000000000</double>
+          </property>
+         </widget>
+         <widget class="QLabel" name="label_5">
+          <property name="geometry">
+           <rect>
+            <x>30</x>
+            <y>240</y>
+            <width>101</width>
+            <height>19</height>
+           </rect>
+          </property>
+          <property name="text">
+           <string>Tangent bias</string>
+          </property>
+         </widget>
+         <widget class="QDoubleSpinBox" name="doubleSpinBox_strength">
+          <property name="geometry">
+           <rect>
+            <x>30</x>
+            <y>320</y>
+            <width>147</width>
+            <height>42</height>
+           </rect>
+          </property>
+          <property name="singleStep">
+           <double>0.100000000000000</double>
+          </property>
+          <property name="value">
+           <double>1.000000000000000</double>
+          </property>
+         </widget>
+         <widget class="QLabel" name="label_4">
+          <property name="geometry">
+           <rect>
+            <x>30</x>
+            <y>300</y>
+            <width>66</width>
+            <height>19</height>
+           </rect>
+          </property>
+          <property name="text">
+           <string>Strength</string>
+          </property>
+         </widget>
         </widget>
         <widget class="QGroupBox" name="groupBox">
          <property name="geometry">
           <rect>
            <x>0</x>
-           <y>130</y>
+           <y>430</y>
            <width>211</width>
-           <height>111</height>
+           <height>61</height>
           </rect>
          </property>
          <property name="title">
@@ -183,7 +322,7 @@
         <property name="sizeHint" stdset="0">
          <size>
           <width>50</width>
-          <height>50</height>
+          <height>10</height>
          </size>
         </property>
        </spacer>
@@ -351,11 +490,20 @@
     <slot>set_ao2(bool)</slot>
     <slot>set_separable_ao(bool)</slot>
     <slot>set_blur(int)</slot>
+    <slot>set_hbao_directions(int)</slot>
+    <slot>set_hbao_steps(int)</slot>
+    <slot>set_hbao_radius(double)</slot>
+    <slot>set_hbao_t_bias(double)</slot>
+    <slot>set_hbao_strength(double)</slot>
    </slots>
   </customwidget>
  </customwidgets>
  <tabstops>
   <tabstop>radioButton_hbao</tabstop>
+  <tabstop>spinBox_directions</tabstop>
+  <tabstop>spinBox_steps</tabstop>
+  <tabstop>doubleSpinBox_radius</tabstop>
+  <tabstop>doubleSpinBox_bias</tabstop>
   <tabstop>radioButton_ao2</tabstop>
   <tabstop>radioButton_separable_ao</tabstop>
   <tabstop>horizontalSlider_blur</tabstop>
@@ -433,8 +581,8 @@
    <slot>set_separable_ao(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>689</x>
-     <y>138</y>
+     <x>773</x>
+     <y>436</y>
     </hint>
     <hint type="destinationlabel">
      <x>566</x>
@@ -449,8 +597,8 @@
    <slot>set_blur(int)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>689</x>
-     <y>208</y>
+     <x>803</x>
+     <y>496</y>
     </hint>
     <hint type="destinationlabel">
      <x>569</x>
@@ -465,12 +613,92 @@
    <slot>set_ao2(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>697</x>
-     <y>111</y>
+     <x>735</x>
+     <y>406</y>
     </hint>
     <hint type="destinationlabel">
      <x>498</x>
      <y>113</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>spinBox_directions</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>glwidget</receiver>
+   <slot>set_hbao_directions(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>675</x>
+     <y>131</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>561</x>
+     <y>165</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>spinBox_steps</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>glwidget</receiver>
+   <slot>set_hbao_steps(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>664</x>
+     <y>203</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>527</x>
+     <y>198</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>doubleSpinBox_radius</sender>
+   <signal>valueChanged(double)</signal>
+   <receiver>glwidget</receiver>
+   <slot>set_hbao_radius(double)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>662</x>
+     <y>252</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>509</x>
+     <y>250</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>doubleSpinBox_bias</sender>
+   <signal>valueChanged(double)</signal>
+   <receiver>glwidget</receiver>
+   <slot>set_hbao_t_bias(double)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>673</x>
+     <y>310</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>570</x>
+     <y>325</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>doubleSpinBox_strength</sender>
+   <signal>valueChanged(double)</signal>
+   <receiver>glwidget</receiver>
+   <slot>set_hbao_strength(double)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>671</x>
+     <y>376</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>586</x>
+     <y>381</y>
     </hint>
    </hints>
   </connection>

@@ -1,7 +1,13 @@
 #version 330
 
+const float PI = 3.14159265359;
+
 smooth in vec2 pos;
 smooth in vec2 screen_ray;
+
+uniform sampler2D normalDepthTexture;
+
+uniform sampler2D noise_texture;
 
 uniform mat4 projection;
 
@@ -10,13 +16,14 @@ uniform float tan_half_fov;
 
 uniform vec2 pixel_size;
 
-uniform sampler2D normalDepthTexture;
-
-uniform sampler2D noise_texture;
+// Parameters
+uniform int directions;
+uniform int steps;
+uniform float radius;
+uniform float t_bias;
+uniform float strength;
 
 out vec4 frag_color;
-
-const float PI = 3.14159265359;
 
 const mat2 UNIFORM_DIRECTIONS[4] = mat2[](
   mat2(cos(0),              sin(0),              -sin(0),              cos(0)),
@@ -24,12 +31,6 @@ const mat2 UNIFORM_DIRECTIONS[4] = mat2[](
   mat2(cos(PI),             sin(PI),             -sin(PI),             cos(PI)),
   mat2(cos(PI * 3.0 / 2.0), sin(PI * 3.0 / 2.0), -sin(PI * 3.0 / 2.0), cos(PI * 3.0 / 2.0))
 );
-
-const int DIRECTIONS = 2;
-const int STEPS = 6;
-const float RADIUS = 0.3;
-const float T_BIAS = 30.0 * (PI / 180.0);
-const float STRENGTH = 1.0;
 
 vec3 unproject (vec2 screen_ray, float p_depth) {
   vec3 p_view;
@@ -60,35 +61,34 @@ void main (void) {
 
   float sum = 0.0;
 
-
   float start = random(pos) * (PI * 0.5); // Random starting angle.
   float end = start + (PI * 0.5);
-  const float step = (PI * 0.5) / float(DIRECTIONS);
+  float step = (PI * 0.5) / float(directions);
   for (float d_a = start; d_a < end; d_a += step) { // Iterate over a single quadrant.
-    for (int i = 0; i < 4; ++i) { // Uniform distribution of directions (4 quadrants).
+    for (int i = 0; i < 4; ++i) { // Uniform directions distribution (4 quadrants).
       vec3 r_view = vec3(UNIFORM_DIRECTIONS[i] * vec2(cos(d_a) , sin(d_a)), 0.0); // Radius vector, unit length.
 
-      vec3 q_view = p_view + r_view * RADIUS; // Sphere end point.
+      vec3 q_view = p_view + r_view * radius; // Sphere end point.
       vec4 q_clip = projection * vec4(q_view, 1.0); // Project shpere end point from veiw to texture sapce.
       vec2 q_texture = (q_clip.xy / q_clip.w) * 0.5 + 0.5;
 
-      vec2 r_texture_inc = (q_texture- pos) / STEPS;
+      vec2 r_texture_inc = (q_texture - pos) / steps;
 
       vec3 t_view = normalize(cross(n_view, cross(r_view, vec3(0.0, 0.0, 1.0))));
 
-      float t_a = atan(t_view.z, length(t_view.xy)) + T_BIAS;
+      float t_a = atan(t_view.z, length(t_view.xy)) + t_bias; // Tangent angle. Tangent angle bias.
 
       float h_a_pre = t_a;
       float ao_pre = 0.0;
       float wao = 0.0;
 
-      vec2 s_texture = pos;
-      for (int j = 0; j < STEPS; ++j) { // Marching on the heighfield.
-        s_texture += r_texture_inc * (0.1 + random(pos + j) * 0.9);
+      vec2 s_texture = pos; // Sample point.
+      for (int j = 0; j < steps; ++j) { // Marching on the heighfield.
+        s_texture += r_texture_inc * (0.1 + random(pos + j) * 0.9); // Random step size. Between 0.1 and 1.0.
         vec2 s_texture_snap = (round(s_texture / pixel_size) + 0.5) * pixel_size; // Snap to pixels centers.
 
         float s_depth = texture(normalDepthTexture, s_texture_snap.xy).a;
-        if (s_depth == 0.0) {
+        if (s_depth == 0.0) { // Discard sample if we do not have depth information.
           continue;
         }
 
@@ -98,14 +98,13 @@ void main (void) {
 
         vec3 d_view = s_view - p_view;
 
-        float h_a = atan(d_view.z / length(d_view.xy));
+        float h_a = atan(d_view.z / length(d_view.xy)); // Horizon angle.
 
         float d_view_len = length(d_view);
-        if (h_a > h_a_pre && d_view_len <= RADIUS) {
-          float r_norm = d_view_len / RADIUS;
+        if (h_a > h_a_pre && d_view_len <= radius) {
+          float ao = normalize(d_view).z - t_view.z; // Per-sample attenuation. Equal to sin(h_a) - sin(t_a) if t and h are normalized (credit to Marc C.).
 
-          float ao = normalize(d_view).z - t_view.z; // Per sample attenuation. Equal to sin(h_a) - sin(t_a) if t and h are normalized (credit to Marc C.).
-
+          float r_norm = d_view_len / radius;
           wao += (ao - ao_pre) * (1.0 - r_norm * r_norm);
 
           h_a_pre = h_a;
@@ -117,6 +116,6 @@ void main (void) {
     }
   }
 
-  float ao = 1.0 - (sum * STRENGTH / float(4 * DIRECTIONS));
+  float ao = 1.0 - (sum * strength / float(4 * directions));
   frag_color = vec4(ao, ao, ao, 1.0);
 }
