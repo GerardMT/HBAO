@@ -7,7 +7,7 @@ A more detailed documentation can be found [here](https://github.com/GerardMT/HB
 - Tweak the multiple HBAO parameters.
 - Set a custom blur to smooth the HBAO.
 - Visualize the G-buffer.
-- Load any triangulated PLY moddel.
+- Load any triangulated PLY model.
 
 ## Requirements
 The software requires the following libraries to be installed:
