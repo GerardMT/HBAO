@@ -1,7 +1,7 @@
 # HBAO
 An Horizon Based Ambient Occlusion implementation. Qt 5 used as the base framework.
 
-A more detailed documentation can be found [here](https://github.com/GerardMT/HBAO/tree/master/docs/report/report.pdf).
+A more detailed documentation can be found [here](docs/report/report.pdf).
 
 ## Features
 - Tweak the multiple HBAO parameters.
