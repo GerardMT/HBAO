@@ -1,5 +1,3 @@
-// Author: Marc Comino 2020
-
 #ifndef GLWIDGET_H_
 #define GLWIDGET_H_
 
@@ -65,15 +63,9 @@ class GLWidget : public QGLWidget {
    */
   QOpenGLShaderProgram *hbao_program_ = nullptr;
 
-  /**
-   * @brief program_ The other AO shader program.
-   */
-  QOpenGLShaderProgram *ao2_program_ = nullptr; // TODO Plz, rename me
+  QOpenGLShaderProgram *depth_program_ = nullptr;
 
-  /**
-   * @brief program_ The Separable SSAO shader program.
-   */
-  QOpenGLShaderProgram *separable_ao_program_ = nullptr;
+  QOpenGLShaderProgram *normal_program_ = nullptr;
 
   /**
    * @brief camera_ Class that computes the multiple camera transform matrices.
@@ -144,9 +136,9 @@ class GLWidget : public QGLWidget {
 
   void set_hbao(bool v);
 
-  void set_ao2(bool v);
+  void set_depth(bool v);
 
-  void set_separable_ao(bool v);
+  void set_normal(bool v);
 
   void set_blur(int amount);
 

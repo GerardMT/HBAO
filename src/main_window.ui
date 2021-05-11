@@ -86,25 +86,12 @@
            <x>0</x>
            <y>0</y>
            <width>211</width>
-           <height>431</height>
+           <height>421</height>
           </rect>
          </property>
          <property name="title">
-          <string>AO</string>
+          <string>Render</string>
          </property>
-         <widget class="QRadioButton" name="radioButton_separable_ao">
-          <property name="geometry">
-           <rect>
-            <x>10</x>
-            <y>400</y>
-            <width>151</width>
-            <height>25</height>
-           </rect>
-          </property>
-          <property name="text">
-           <string>Separable SSAO</string>
-          </property>
-         </widget>
          <widget class="QRadioButton" name="radioButton_hbao">
           <property name="geometry">
            <rect>
@@ -126,12 +113,12 @@
            <rect>
             <x>10</x>
             <y>370</y>
-            <width>113</width>
+            <width>151</width>
             <height>25</height>
            </rect>
           </property>
           <property name="text">
-           <string>AO2</string>
+           <string>Depth</string>
           </property>
          </widget>
          <widget class="QLabel" name="label">
@@ -273,6 +260,19 @@
            <string>Strength</string>
           </property>
          </widget>
+         <widget class="QRadioButton" name="radioButton_ao2_2">
+          <property name="geometry">
+           <rect>
+            <x>10</x>
+            <y>400</y>
+            <width>151</width>
+            <height>25</height>
+           </rect>
+          </property>
+          <property name="text">
+           <string>Normal</string>
+          </property>
+         </widget>
         </widget>
         <widget class="QGroupBox" name="groupBox">
          <property name="geometry">
@@ -354,7 +354,7 @@
          <property name="geometry">
           <rect>
            <x>90</x>
-           <y>10</y>
+           <y>30</y>
            <width>91</width>
            <height>17</height>
           </rect>
@@ -367,7 +367,7 @@
          <property name="geometry">
           <rect>
            <x>10</x>
-           <y>10</y>
+           <y>30</y>
            <width>67</width>
            <height>17</height>
           </rect>
@@ -380,7 +380,7 @@
          <property name="geometry">
           <rect>
            <x>10</x>
-           <y>30</y>
+           <y>50</y>
            <width>67</width>
            <height>17</height>
           </rect>
@@ -393,33 +393,7 @@
          <property name="geometry">
           <rect>
            <x>90</x>
-           <y>30</y>
-           <width>91</width>
-           <height>17</height>
-          </rect>
-         </property>
-         <property name="text">
-          <string>0</string>
-         </property>
-        </widget>
-        <widget class="QLabel" name="Label_Framerate">
-         <property name="geometry">
-          <rect>
-           <x>10</x>
-           <y>60</y>
-           <width>71</width>
-           <height>17</height>
-          </rect>
-         </property>
-         <property name="text">
-          <string>Framerate</string>
-         </property>
-        </widget>
-        <widget class="QLabel" name="Label_NumFramerate">
-         <property name="geometry">
-          <rect>
-           <x>90</x>
-           <y>60</y>
+           <y>50</y>
            <width>91</width>
            <height>17</height>
           </rect>
@@ -487,14 +461,14 @@
     <signal>SetVertices(QString)</signal>
     <signal>SetFramerate(QString)</signal>
     <slot>set_hbao(bool)</slot>
-    <slot>set_ao2(bool)</slot>
-    <slot>set_separable_ao(bool)</slot>
+    <slot>set_normal(bool)</slot>
     <slot>set_blur(int)</slot>
     <slot>set_hbao_directions(int)</slot>
     <slot>set_hbao_steps(int)</slot>
     <slot>set_hbao_radius(double)</slot>
     <slot>set_hbao_t_bias(double)</slot>
     <slot>set_hbao_strength(double)</slot>
+    <slot>set_depth(bool)</slot>
    </slots>
   </customwidget>
  </customwidgets>
@@ -505,7 +479,6 @@
   <tabstop>doubleSpinBox_radius</tabstop>
   <tabstop>doubleSpinBox_bias</tabstop>
   <tabstop>radioButton_ao2</tabstop>
-  <tabstop>radioButton_separable_ao</tabstop>
   <tabstop>horizontalSlider_blur</tabstop>
  </tabstops>
  <resources/>
@@ -543,54 +516,6 @@
    </hints>
   </connection>
   <connection>
-   <sender>glwidget</sender>
-   <signal>SetFramerate(QString)</signal>
-   <receiver>Label_NumFramerate</receiver>
-   <slot>setText(QString)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>605</x>
-     <y>634</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>760</x>
-     <y>617</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>radioButton_hbao</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>glwidget</receiver>
-   <slot>set_hbao(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>657</x>
-     <y>79</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>503</x>
-     <y>135</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>radioButton_separable_ao</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>glwidget</receiver>
-   <slot>set_separable_ao(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>773</x>
-     <y>436</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>566</x>
-     <y>216</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
    <sender>horizontalSlider_blur</sender>
    <signal>valueChanged(int)</signal>
    <receiver>glwidget</receiver>
@@ -603,22 +528,6 @@
     <hint type="destinationlabel">
      <x>569</x>
      <y>291</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>radioButton_ao2</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>glwidget</receiver>
-   <slot>set_ao2(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>735</x>
-     <y>406</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>498</x>
-     <y>113</y>
     </hint>
    </hints>
   </connection>
@@ -699,6 +608,70 @@
     <hint type="destinationlabel">
      <x>586</x>
      <y>381</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>radioButton_hbao</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>glwidget</receiver>
+   <slot>set_hbao(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>657</x>
+     <y>79</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>503</x>
+     <y>135</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>radioButton_hbao</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>glwidget</receiver>
+   <slot>set_hbao(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>635</x>
+     <y>80</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>565</x>
+     <y>62</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>radioButton_ao2</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>glwidget</receiver>
+   <slot>set_depth(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>717</x>
+     <y>419</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>561</x>
+     <y>446</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>radioButton_ao2_2</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>glwidget</receiver>
+   <slot>set_normal(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>661</x>
+     <y>453</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>598</x>
+     <y>472</y>
     </hint>
    </hints>
   </connection>

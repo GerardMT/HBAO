@@ -1,5 +1,3 @@
-// Author: Marc Comino 2020
-
 #include <glwidget.h>
 
 #include <fstream>
@@ -17,20 +15,20 @@ const double kFieldOfView = 60;
 const double kZNear = 0.1;
 const double kZFar = 10;
 
-const char g_vert_file[] = "../shaders/g.vert";
-const char g_frag_file[] = "../shaders/g.frag";
+const char g_vert_file[] = "../../res/shaders/g.vert";
+const char g_frag_file[] = "../../res/shaders/g.frag";
 
-const char blur_vert_file[] = "../shaders/blur.vert";
-const char blur_frag_file[] = "../shaders/blur.frag";
+const char blur_vert_file[] = "../../res/shaders/blur.vert";
+const char blur_frag_file[] = "../../res/shaders/blur.frag";
 
-const char hbao_vert_file[] = "../shaders/hbao.vert";
-const char hbao_frag_file[] = "../shaders/hbao.frag";
+const char hbao_vert_file[] = "../../res/shaders/hbao.vert";
+const char hbao_frag_file[] = "../../res/shaders/hbao.frag";
 
-const char ao2_vert_file[] = "../shaders/ao2.vert";
-const char ao2_frag_file[] = "../shaders/ao2.frag";
+const char depth_vert_file[] = "../../res/shaders/depth.vert";
+const char depth_frag_file[] = "../../res/shaders/depth.frag";
 
-const char separable_ao_vert_file[] = "../shaders/separable_ao.vert";
-const char separable_ao_frag_file[] = "../shaders/separable_ao.frag";
+const char normal_vert_file[] = "../../res/shaders/normal.vert";
+const char normal_frag_file[] = "../../res/shaders/nromal.frag";
 
 const int kVertexAttributeIdx = 0;
 const int kNormalAttributeIdx = 1;
@@ -98,8 +96,8 @@ GLWidget::~GLWidget() {
   delete g_program_;
   delete blur_program_;
   delete hbao_program_;
-  delete ao2_program_;
-  delete separable_ao_program_;
+  delete depth_program_;
+  delete normal_program_;
 
   if (initialized_) {
     glDeleteVertexArrays(1, &vao_);
@@ -188,10 +186,10 @@ void GLWidget::initializeGL() {
   res &= LoadProgram(blur_vert_file, blur_frag_file, *blur_program_);
   hbao_program_ = new QOpenGLShaderProgram();
   res &= LoadProgram(hbao_vert_file, hbao_frag_file, *hbao_program_);
-  ao2_program_ = new QOpenGLShaderProgram();
-  res &= LoadProgram(ao2_vert_file, ao2_frag_file, *ao2_program_);
-  separable_ao_program_ = new QOpenGLShaderProgram();
-  res &= LoadProgram(separable_ao_vert_file, separable_ao_frag_file, *separable_ao_program_);
+  depth_program_ = new QOpenGLShaderProgram();
+  res &= LoadProgram(depth_vert_file, depth_frag_file, *depth_program_);
+  normal_program_ = new QOpenGLShaderProgram();
+  res &= LoadProgram(normal_vert_file, normal_frag_file, *normal_program_);
 
   if (!res) exit(0);
 
@@ -213,10 +211,11 @@ void GLWidget::initializeGL() {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  load_noise_image("../textures/noise.png"); // http://momentsingraphics.de/BlueNoise.html
+  load_noise_image("../../res/textures/noise.png"); // http://momentsingraphics.de/BlueNoise.html
 
-  if (!LoadModel("../models/ao_1.ply")) {
-    return;
+  if (!LoadModel("../../res/models/ao_1.ply")) {
+    std::cerr << "Model not found" << std::endl;
+    exit(1);
   }
 
   assert(COLOR_FBOS >= 0);
@@ -342,12 +341,12 @@ void GLWidget::keyPressEvent(QKeyEvent *event) {
     delete hbao_program_;
     hbao_program_ = new QOpenGLShaderProgram();
     LoadProgram(hbao_vert_file, hbao_frag_file, *hbao_program_);
-    delete ao2_program_;
-    ao2_program_ = new QOpenGLShaderProgram();
-    LoadProgram(ao2_vert_file, ao2_frag_file, *ao2_program_);
-    delete separable_ao_program_;
-    separable_ao_program_ = new QOpenGLShaderProgram();
-    LoadProgram(separable_ao_vert_file, separable_ao_frag_file, *separable_ao_program_);
+    delete depth_program_;
+    depth_program_ = new QOpenGLShaderProgram();
+    LoadProgram(depth_vert_file, depth_frag_file, *depth_program_);
+    delete normal_program_;
+    normal_program_ = new QOpenGLShaderProgram();
+    LoadProgram(normal_vert_file, normal_frag_file, *normal_program_);
   }
 
   updateGL();
@@ -422,14 +421,14 @@ void GLWidget::paintGL() {
           break;
         }
       case 1: {
-          ao2_program_->bind();
+          depth_program_->bind();
           glActiveTexture(GL_TEXTURE0 + 0);
           glBindTexture(GL_TEXTURE_2D, g_normal_depth_texture_);
           glUniform1i(hbao_program_->uniformLocation("normalDepthTexture"), 0);
           break;
         }
       case 2: {
-          separable_ao_program_->bind();
+          normal_program_->bind();
           glActiveTexture(GL_TEXTURE0 + 0);
           glBindTexture(GL_TEXTURE_2D, g_normal_depth_texture_);
           glUniform1i(hbao_program_->uniformLocation("normalDepthTexture"), 0);
@@ -473,22 +472,22 @@ void GLWidget::paintGL() {
 void GLWidget::set_hbao(bool v) {
   if (v) {
     ao_program_ = 0;
+    update();
   }
-  update();
 }
 
-void GLWidget::set_ao2(bool v) {
+void GLWidget::set_depth(bool v) {
   if (v) {
     ao_program_ = 1;
+    update();
   }
-  update();
 }
 
-void GLWidget::set_separable_ao(bool v) {
+void GLWidget::set_normal(bool v) {
   if (v) {
     ao_program_ = 2;
+    update();
   }
-  update();
 }
 
 void GLWidget::set_blur(int amount) {
@@ -520,4 +519,3 @@ void GLWidget::set_hbao_strength(double v) {
   hbao_strength = static_cast<float>(v);
   update();
 }
-
